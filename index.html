@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Mochila 0/1 - Interativo para Moodle</title>
+<title>Mochila 0/1 - Interativo Avaliável</title>
 <style>
 body{font-family:Inter, system-ui, -apple-system,'Segoe UI', Roboto,'Helvetica Neue', Arial;padding:18px;background:#f7f9fb;color:#111}
-h1{font-size:20px}
+h1{font-size:20px;margin-bottom:12px}
 .input-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 input[type="number"], input[type="text"]{padding:6px 8px;border-radius:6px;border:1px solid #cbd5e1;width:80px}
 button{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;background:#2563eb;color:white}
@@ -18,10 +18,11 @@ th,td{border:1px solid #e6eef8;padding:8px;text-align:right;min-width:40px}
 .error{background:#fee2e2;color:#9b1c1c}
 .highlight{background:#fef3c7}
 .small{font-size:13px}
+.answer-row{margin-top:12px}
 </style>
 </head>
 <body>
-<h1>Mochila 0/1 - Programação Dinâmica (Interativo)</h1>
+<h1>Mochila 0/1 - Programação Dinâmica (Interativo Avaliável)</h1>
 
 <div class="input-row">
 <label class="small">Itens (n):</label>
@@ -40,7 +41,9 @@ th,td{border:1px solid #e6eef8;padding:8px;text-align:right;min-width:40px}
 </div>
 
 <div id="tableArea" style="margin-top:12px; overflow:auto"></div>
-<div id="controls" style="margin-top:12px"></div>
+
+<div class="answer-row" id="answerArea"></div>
+
 <div id="feedback" class="status small">Preencha os itens e clique em Criar Tabela DP.</div>
 <div id="solution" class="status small"></div>
 
@@ -50,7 +53,7 @@ function round(x){return Math.round(x*1000)/1000}
 function clone(x){return JSON.parse(JSON.stringify(x))}
 
 // --- Problema e DP ---
-let problem=null, DP=null, solutionHistory=[], currentStep=0;
+let problem=null, DP=null, solutionHistory=[], currentStep=0, optimalItems=[];
 
 function renderForm(){
   const n = +document.getElementById('nItems').value;
@@ -64,6 +67,7 @@ function renderForm(){
       Valor: <input type="number" step="1" value="1" id="v_${i}"/>`;
     form.appendChild(row);
   }
+  document.getElementById('answerArea').innerHTML='';
 }
 
 function readProblem(){
@@ -94,8 +98,10 @@ function buildTable(){
   currentStep=0;
   renderTable(DP);
   renderControls();
+  computeOptimalItems();
+  renderAnswerInputs();
   showSolution();
-  document.getElementById('feedback').innerText='Tabela DP criada. Faça passos ou resolva automaticamente.';
+  document.getElementById('feedback').innerText='Tabela DP criada. Faça passos, resolva automaticamente e tente enviar sua resposta.';
 }
 
 // --- Renderizar tabela ---
@@ -124,17 +130,56 @@ function renderTable(table){
   tbl.appendChild(tbody); container.appendChild(tbl);
 }
 
-// --- Mostrar solução ---
-function showSolution(){
+// --- Computar solução ótima ---
+function computeOptimalItems(){
   const {n,W,w,v}=problem;
   let res=[], j=W;
   for(let i=n;i>0;i--){
     if(DP[i][j]!=DP[i-1][j]){ res.push(i-1); j-=w[i-1]; }
   }
   res.reverse();
+  optimalItems=res;
+}
+
+// --- Mostrar solução ---
+function showSolution(){
+  const {n,W,w,v}=problem;
   const solDiv=document.getElementById('solution');
-  solDiv.innerHTML='Itens escolhidos: '+res.map(i=>`Item ${i+1} (peso=${w[i]}, valor=${v[i]})`).join(', ') +
-    `<br/>Valor máximo: ${DP[n][W]}`;
+  if(!DP) return;
+  solDiv.innerHTML='Valor máximo: '+DP[problem.n][problem.W];
+}
+
+// --- Renderizar inputs de resposta ---
+function renderAnswerInputs(){
+  const {n}=problem;
+  const area = document.getElementById('answerArea');
+  area.innerHTML='<strong>Selecione os itens que você acredita fazer parte da solução ótima:</strong><br/>';
+  for(let i=0;i<n;i++){
+    const label = document.createElement('label');
+    label.style.marginRight='12px';
+    label.innerHTML = `<input type="checkbox" name="answer" value="${i}"> Item ${i+1}`;
+    area.appendChild(label);
+  }
+  const btn = document.createElement('button');
+  btn.innerText='Enviar Resposta';
+  btn.style.marginLeft='12px';
+  btn.addEventListener('click', checkAnswer);
+  area.appendChild(btn);
+}
+
+// --- Verificar resposta ---
+function checkAnswer(){
+  const selected = Array.from(document.querySelectorAll('input[name="answer"]:checked')).map(el => +el.value);
+  const correct = optimalItems;
+  const isCorrect = JSON.stringify(selected.sort()) === JSON.stringify(correct.sort());
+  const resDiv = document.getElementById('feedback');
+  if(isCorrect){
+    resDiv.innerText = `✅ Correto! Nota: 1\nItens selecionados: ${selected.map(i=>'Item '+(i+1)).join(', ')}`;
+    resDiv.className='status ok';
+  } else {
+    resDiv.innerText = `❌ Incorreto! Nota: 0\nItens selecionados: ${selected.map(i=>'Item '+(i+1)).join(', ')}\nSolução ótima: ${correct.map(i=>'Item '+(i+1)).join(', ')}`;
+    resDiv.className='status error';
+  }
 }
 
 // --- Controles de passo a passo ---
@@ -177,9 +222,10 @@ function resetAll(){
   document.getElementById('formArea').innerHTML='';
   document.getElementById('tableArea').innerHTML='';
   document.getElementById('controls').innerHTML='';
+  document.getElementById('answerArea').innerHTML='';
   document.getElementById('feedback').innerText='Preencha os itens e clique em Criar Tabela DP.';
   document.getElementById('solution').innerText='';
-  DP=null; problem=null; solutionHistory=[]; currentStep=0;
+  DP=null; problem=null; solutionHistory=[]; currentStep=0; optimalItems=[];
 }
 
 // --- Eventos ---
